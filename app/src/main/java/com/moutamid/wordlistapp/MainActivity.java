@@ -2,6 +2,9 @@ package com.moutamid.wordlistapp;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
@@ -48,7 +51,30 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        wordTextView = findViewById(R.id.wordTextView);
+        translationTextView = findViewById(R.id.translationTextView);
 
+        loadWords();
+        displayRandomWord();
+
+        textToSpeech = new TextToSpeech(this, status -> {
+            if (status == TextToSpeech.SUCCESS) {
+                int result = textToSpeech.setLanguage(Locale.US); // Set language to US English
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    Toast.makeText(this, "Language not supported", Toast.LENGTH_SHORT).show();
+                }
+            } else {
+                Toast.makeText(this, "Text-to-Speech initialization failed", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        gestureDetector = new GestureDetector(this, new GestureListener());
+        checkApp(MainActivity.this);
+        inactivityRunnable = this::minimizeApp;
+        timerRunnable = this::notifyNewWord;
+        startInactivityTimer();
+        startAppTimer();
+        createNotificationChannel();
     }
 
     @Override
@@ -92,11 +118,11 @@ public class MainActivity extends AppCompatActivity {
 
     private void resetInactivityTimer() {
         inactivityHandler.removeCallbacks(inactivityRunnable);
-        inactivityHandler.postDelayed(inactivityRunnable, 10000); // 10 seconds
+        inactivityHandler.postDelayed(inactivityRunnable, 60000); // 1 minute
     }
 
     private void startInactivityTimer() {
-        inactivityHandler.postDelayed(inactivityRunnable, 10000); // 10 seconds
+        inactivityHandler.postDelayed(inactivityRunnable, 10000); // 10 sec
     }
 
     private void minimizeApp() {
@@ -108,15 +134,25 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void notifyNewWord() {
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_launcher_background)
-                .setContentTitle("New Word is Ready")
-                .setContentText("A new word is available for you.")
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setAutoCancel(true);
-        startActivity(new Intent(this, MainActivity.class));
-        NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
-        notificationManager.notify(1, builder.build());
+        if (!wordsList.isEmpty()) {
+            int index = random.nextInt(wordsList.size());
+            String[] wordPair = wordsList.get(index);
+
+            Intent intent = new Intent(this, MainActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+                    .setSmallIcon(R.drawable.ic_launcher_background)
+                    .setContentTitle("New Word: " + wordPair[0])
+                    .setContentText("Translation: " + wordPair[1])
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setAutoCancel(true)
+                    .setContentIntent(pendingIntent);
+
+            NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
+            notificationManager.notify(1, builder.build());
+        }
     }
 
     private void createNotificationChannel() {
@@ -158,29 +194,8 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        wordTextView = findViewById(R.id.wordTextView);
-        translationTextView = findViewById(R.id.translationTextView);
-        gestureDetector = new GestureDetector(this, new GestureListener());
-
-        loadWords();
-        displayRandomWord();
-
-        textToSpeech = new TextToSpeech(this, status -> {
-            if (status == TextToSpeech.SUCCESS) {
-                int result = textToSpeech.setLanguage(Locale.US); // Set language to US English
-                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                    Toast.makeText(this, "Language not supported", Toast.LENGTH_SHORT).show();
-                }
-            } else {
-                Toast.makeText(this, "Text-to-Speech initialization failed", Toast.LENGTH_SHORT).show();
-            }
-        });
-        checkApp(MainActivity.this);
-        inactivityRunnable = this::minimizeApp;
-        timerRunnable = this::notifyNewWord;
         startInactivityTimer();
         startAppTimer();
-        createNotificationChannel();
     }
 
     public static void checkApp(Activity activity) {
@@ -238,5 +253,4 @@ public class MainActivity extends AppCompatActivity {
 
         }).start();
     }
-
 }

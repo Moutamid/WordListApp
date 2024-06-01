@@ -16,7 +16,13 @@ import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.List;
 import java.util.Locale;
+import java.util.Random;
 
 public class WordNotificationService extends Service {
 
@@ -24,12 +30,16 @@ public class WordNotificationService extends Service {
     private Handler handler;
     private Runnable notificationRunnable;
     private TextToSpeech textToSpeech;
+    private Random random;
+    private List<String[]> wordsList;
 
     @Override
     public void onCreate() {
         super.onCreate();
         handler = new Handler(Looper.getMainLooper());
+        random = new Random();
         createNotificationChannel();
+        loadWords();
 
         textToSpeech = new TextToSpeech(this, status -> {
             if (status == TextToSpeech.SUCCESS) {
@@ -44,7 +54,6 @@ public class WordNotificationService extends Service {
 
         notificationRunnable = () -> {
             sendNotification();
-            speakWord("New word is ready");
         };
 
         startNotificationTimer();
@@ -63,25 +72,41 @@ public class WordNotificationService extends Service {
     }
 
     private void sendNotification() {
-        Intent intent = new Intent(this, MainActivity.class);
-        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+        if (!wordsList.isEmpty()) {
+            int index = random.nextInt(wordsList.size());
+            String[] wordPair = wordsList.get(index);
 
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_launcher_background) // Ensure you have a notification icon in res/drawable
-                .setContentTitle("New Word is Ready")
-                .setContentText("A new word is available for you.")
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setAutoCancel(true)
-                .setContentIntent(pendingIntent);
+            Intent intent = new Intent(this, MainActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
-        notificationManager.notify(1, builder.build());
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+                    .setSmallIcon(R.drawable.ic_launcher_background) // Ensure you have a notification icon in res/drawable
+                    .setContentTitle("New Word: " + wordPair[0])
+                    .setContentText("Translation: " + wordPair[1])
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setAutoCancel(true)
+                    .setContentIntent(pendingIntent);
+
+            NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
+            notificationManager.notify(1, builder.build());
+        }
     }
 
-    private void speakWord(String text) {
-        if (textToSpeech != null) {
-            textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, null);
+    private void loadWords() {
+        try {
+            InputStream inputStream = getResources().openRawResource(R.raw.words); // Load words from res/raw/words.txt
+            BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] parts = line.split("=");
+                if (parts.length == 2) {
+                    wordsList.add(parts);
+                }
+            }
+            reader.close();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 

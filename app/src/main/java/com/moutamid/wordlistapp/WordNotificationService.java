@@ -82,7 +82,7 @@ public class WordNotificationService extends Service {
 
             NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                     .setSmallIcon(R.drawable.ic_launcher_background) // Ensure you have a notification icon in res/drawable
-                    .setContentTitle("New Word: " + wordPair[0])
+                    .setContentTitle("" + wordPair[0])
                     .setContentText("Translation: " + wordPair[1])
                     .setPriority(NotificationCompat.PRIORITY_HIGH)
                     .setAutoCancel(true)

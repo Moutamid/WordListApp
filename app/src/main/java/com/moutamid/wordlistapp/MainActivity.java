@@ -55,7 +55,14 @@ public class MainActivity extends AppCompatActivity {
         translationTextView = findViewById(R.id.translationTextView);
 
         loadWords();
-        displayRandomWord();
+        Intent intent = getIntent();
+        if (intent != null && intent.hasExtra("WORD") && intent.hasExtra("TRANSLATION")) {
+            String word = intent.getStringExtra("WORD");
+            String translation = intent.getStringExtra("TRANSLATION");
+            displayWord(word, translation);
+        } else {
+            displayRandomWord();
+        }
 
         textToSpeech = new TextToSpeech(this, status -> {
             if (status == TextToSpeech.SUCCESS) {
@@ -95,6 +102,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
             reader.close();
+            WordListSingleton.getInstance().setWordsList(wordsList);  // Set the list in singleton
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -104,11 +112,14 @@ public class MainActivity extends AppCompatActivity {
         if (!wordsList.isEmpty()) {
             int index = random.nextInt(wordsList.size());
             String[] wordPair = wordsList.get(index);
-            wordTextView.setText(wordPair[0]);
-            translationTextView.setText(wordPair[1]);
+            displayWord(wordPair[0], wordPair[1]);
         }
     }
 
+    private void displayWord(String word, String translation) {
+        wordTextView.setText(word);
+        translationTextView.setText(translation);
+    }
     private void speakWord() {
         String word = wordTextView.getText().toString();
         if (!word.isEmpty()) {
@@ -133,22 +144,25 @@ public class MainActivity extends AppCompatActivity {
         timerHandler.postDelayed(timerRunnable, 60000); // 1 minute
     }
 
-    private void notifyNewWord() {
+    public void notifyNewWord() {
         if (!wordsList.isEmpty()) {
             int index = random.nextInt(wordsList.size());
             String[] wordPair = wordsList.get(index);
-
             Intent intent = new Intent(this, MainActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
+            Intent deleteIntent = new Intent(this, NotificationDismissedReceiver.class);
+            PendingIntent deletePendingIntent = PendingIntent.getBroadcast(this, 0, deleteIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
             NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                     .setSmallIcon(R.drawable.ic_launcher_background)
-                    .setContentTitle("" + wordPair[0])
+                    .setContentTitle(wordPair[0])
                     .setContentText("Translation: " + wordPair[1])
                     .setPriority(NotificationCompat.PRIORITY_HIGH)
                     .setAutoCancel(true)
-                    .setContentIntent(pendingIntent);
+                    .setContentIntent(pendingIntent)
+                    .setDeleteIntent(deletePendingIntent);
 
             NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
             notificationManager.notify(1, builder.build());
@@ -253,4 +267,6 @@ public class MainActivity extends AppCompatActivity {
 
         }).start();
     }
+
+
 }
